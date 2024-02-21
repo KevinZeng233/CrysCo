@@ -1,28 +1,33 @@
-This repository includes CrysCo model to predict inorganic material properties via a hybrid graph-transformer based model
+# This repository includes CrysCo model to predict inorganic material properties via a hybrid graph-transformer based model
 
-% Dataset
+# Dataset
+
 We trained our model mainly on MP21 datasets for 9 properties.
-%Data preprocessing
 
-You need to download cif file from materialproject database via pymatgen that we propose in in data_extraction.ipynb.
-you need to save all cif files and 2 csv files including pretty formula and calculated properties. Please note that for some of the materials, there are same pretty formula. Thus, for one of the csv file we add one identifier number to end of each pretty formula to diffrentiate between those materials that have same formula but different structure.
+# Data preprocessing
 
-% Graph generation and feature extraction:
+"First, download CIF files from the Material Project database using pymatgen as outlined in the data_extraction.ipynb notebook. Ensure to save all CIF files and generate two CSV files containing pretty formulas and calculated properties.
 
-You need to run data_geneeration.py:
-python data_generation.py --path to cif structure  --first CSV file  --second CSV file  --output
-please note that the first CVS file is related to the csv file with regular pretty formula and second CSV file is related to that csv file including pretty formula with an indentifier. 
+Please note that in cases where multiple materials have the same pretty formula but different structures, we append a unique identifier number to the end of each pretty formula in one of the CSV files. This differentiation allows for proper identification of materials with similar formulas but distinct structures."
 
-Models:
-CrysCo.py includes the model architecture. to train the CrysCo model, you need to run model_training.py
+# Graph generation and feature extraction:
+
+"Before training the model, you must run data_generation.py with the following command:
+
+python data_generation.py --path_to_cif_structure <path_to_cif_structure> --first_csv_file <first_CSV_file> --second_csv_file <second_CSV_file> --output <output_directory>
+Please note that the first_CSV_file should contain regular pretty formula data, while the second_CSV_file should include pretty formula with an identifier."
+
+This revision provides a clear instruction for running the data_generation.py script, specifying the required arguments and clarifying the purpose of each CSV file.
+
+# Models:
+"To train the CrysCo model, you will need to use the model_training.py script. First, ensure that CrysCo.py includes the desired model architecture. Then, execute the following command in your terminal:
 
 python model_training.py --data_dir "current path" --data "generated data obtained from running the data_generation.py"
+Remember, you can easily modify all parameters and models by editing parameter.py. Additionally, ensure that all generated data is saved in the processed directory."
 
-you can easily change all parameters and models from parameter.py. 
-
-please note that all generated data should be saved in processed directory. 
-
-Example: for example the current directory is "C:/Users/mom19004/Downloads/sams/". for data generation and training the model you need to:
+This revised version clarifies the steps required to train the model, specifies the commands to execute, and emphasizes the importance of saving generated data in the correct directory.
+# Example: 
+"To perform data generation and model training using the directory "C:/Users/mom19004/Downloads/sams/", you would need to follow these steps:"
 
 1- python C:/Users/mom19004/Downloads/sams/data_generation.py "C:/Users/mom19004/Downloads/sams/material" "Eh.csv" "Ehs.csv" "C:/Users/mom19004/Downloads/sams/processed/"M.pt"
 2-python C:/Users/mom19004/Downloads/sams/model_training.py --data_dir "C:/Users/mom19004/Downloads/sams/" --data "M.pt"
