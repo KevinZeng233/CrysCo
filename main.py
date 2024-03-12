@@ -44,7 +44,7 @@ import process
 from CrysCo import CrysCo
 import argparse  # Add this line to import argparse
 
-from utils_train import trainer, train,model_setup,model_summary,evaluate
+from utils_train import trainer, train,model_setup,model_summary,evaluate,write_results
 from data import loader_setup,get_dataset,StructureDataset,GetY
 
 model_parameters = {  
@@ -145,6 +145,65 @@ def main():
             model_parameters["epochs"],
             training_parameters["verbosity"],
             "my_model_temp.pth",)
+    
+
+    train_error = val_error = test_error = float("NaN")
+
+    ##workaround to get training output in DDP mode
+    ##outputs are slightly different, could be due to dropout or batchnorm?
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=model_parameters["batch_size"],
+        shuffle=False,
+        num_workers=0,
+        pin_memory=True,
+    )
+
+    ##Get train error in eval mode
+    train_error, train_out = evaluate(
+        train_loader, model, training_parameters["loss"], rank, out=True
+    )
+    print("Train Error: {:.5f}".format(train_error))
+
+    ##Get val error
+    if val_loader != None:
+        val_error, val_out = evaluate(
+            val_loader, model, training_parameters["loss"], rank, out=True
+        )
+        print("Val Error: {:.5f}".format(val_error))
+
+    ##Get test error
+    if test_loader != None:
+        test_error, test_out = evaluate(
+            test_loader, model, training_parameters["loss"], rank, out=True
+        )
+        print("Test Error: {:.5f}".format(test_error))
+
+
+    torch.save(
+        {
+            "model_state_dict": model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(),
+            "scheduler_state_dict": scheduler.state_dict(),
+            "full_model": model,
+        },
+        job_parameters["model_path"],
+    )
+
+    ##Write outputs
+    if job_parameters["write_output"] == "True":
+
+        write_results(
+            train_out, str(job_parameters["job_name"]) + "_train_outputs.csv"
+        )
+        if val_loader != None:
+            write_results(
+                val_out, str(job_parameters["job_name"]) + "_val_outputs.csv"
+            )
+        if test_loader != None:
+            write_results(
+                test_out, str(job_parameters["job_name"]) + "_test_outputs.csv"
+            )
 
 
 if __name__ == "__main__":
