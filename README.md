@@ -32,9 +32,14 @@ This revised version clarifies the steps required to train the model, specifies 
 # Example: 
 "To perform data generation and model training using the directory "C:/Users/mom19004/Downloads/sams/", you would need to follow these steps:"
 
-1- python C:/Users/mom19004/Downloads/sams/data_preparation.py "C:/Users/mom19004/Downloads/sams/material" "Eh.csv" "Ehs.csv" "C:/Users/mom19004/Downloads/sams/processed/"M.pt"
+1- python C:/Users/mom19004/Downloads/sams/data_preparation.py "C:/Users/mom19004/Downloads/sams/temp_folder/material_cif" "ehs.csv" "eh.csv" "C:/Users/mom19004/Downloads/sams/processed/"M.pt"
 
 
 2-python C:/Users/mom19004/Downloads/sams/main.py --data_dir "C:/Users/mom19004/Downloads/sams/" --data "M.pt"
+
+# Prediction:
+for prediction, you can use prediction.ipynb file. you need to run this notebook in the difrectory that you saved your pretrained model.
+
+
 
 
