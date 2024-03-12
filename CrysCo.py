@@ -21,7 +21,7 @@ from torch import nn
 import pandas as pd
 
 from MLP import MLP
-#from transformer import Transformer,ElementEncoder,PositionalEncoder
+from transformer import Transformer,ElementEncoder,PositionalEncoder
 from SE import ResidualSE3, NormSE3, LinearSE3
 from EGAT import LinearAttention, GatedGCN,EGAT_att,EGAT_LAYER
 class ResidualNN(nn.Module):
@@ -81,7 +81,7 @@ class CrysCo(torch.nn.Module):
         self.edge_att = EGAT_att(dim1, act, batch_norm,  dropout_rate)
         self.encoder = Transformer(d_model=self.d_model,N=self.N,heads=self.heads)
         self.resnet = ResidualNN(self.d_model, self.out_dims, self.out_hidden)
-        output_dim = len(data[0].y)
+        output_dim = 1 if data[0].y.ndim == 0 else len(data[0].y)
         self.pre_lin_list_E = torch.nn.ModuleList()  
         self.pre_lin_list_N = torch.nn.ModuleList()  
         data.num_edge_features
@@ -129,7 +129,7 @@ class CrysCo(torch.nn.Module):
         output = output.masked_fill(mask, 0)
         output = output.sum(dim=1)/(~mask).sum(dim=1)    
         out_x = getattr(torch_geometric.nn, self.pool)(out_x, data.batch)
-        human_fea = self.human_embedding(data.human_d)
+        human_fea = self.human_embedding(torch.tensor(data.human_d, dtype=torch.float32).to('cuda:0'))
         human_fea = self.human_bn(human_fea)
         out_x = torch.cat((out_x,human_fea,output),1)
         out       = self.lin_out(out_x)

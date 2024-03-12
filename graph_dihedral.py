@@ -208,14 +208,14 @@ def atoms2pygdata(atoms):
         edge_index_dih_ang = torch.tensor(edge_index_dih_ang, dtype=torch.long),
     )
     return data
-p = []
+
 @torch.no_grad()
 def update_bonds_and_angles(data, batch=None):
-    try:
-        data.x_bnd = data.bond_features('edge_index_bnd')
-        data.x_bnd_ang = data.bond_angle_features('x_bnd', 'edge_index_bnd_ang')
-        data.x_dih_ang = data.dihedral_angle_features('edge_index_bnd', 'edge_index_dih_ang')
-        data.x_ang = data.concat_features_with_onehot('x_bnd_ang', 'x_dih_ang')
-        data.edge_index_ang = torch.hstack([data.edge_index_bnd_ang, data.edge_index_dih_ang])
+
+    data.x_bnd = data.bond_features('edge_index_bnd')
+    data.x_bnd_ang = data.bond_angle_features('x_bnd', 'edge_index_bnd_ang')
+    data.x_dih_ang = data.dihedral_angle_features('edge_index_bnd', 'edge_index_dih_ang')
+    data.x_ang = data.concat_features_with_onehot('x_bnd_ang', 'x_dih_ang')
+    data.edge_index_ang = torch.hstack([data.edge_index_bnd_ang, data.edge_index_dih_ang])
     return data
 

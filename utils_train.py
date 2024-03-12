@@ -20,7 +20,7 @@ from torch.nn.parallel import DistributedDataParallel
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import process
-
+from CrysCo import CrysCo
 def train(model, optimizer, loader, loss_method, rank):
     model.train()
     loss_all = 0
@@ -169,7 +169,7 @@ def model_setup(
     model_path=None,
     print_model=True,
 ):
-    model = DEEP_GATGNN(
+    model = CrysCo(
         data=dataset, **(model_params if model_params is not None else {})
     ).to(rank)
     if load_model == "True":

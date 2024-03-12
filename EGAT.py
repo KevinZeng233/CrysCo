@@ -112,7 +112,7 @@ class GatedGCN(MessagePassing):
         return e_gated * self.W_dst(x_j)
 
 class EGAT_att(torch.nn.Module):
-    def __init__(self, dim, act, fc_layers=2):
+    def __init__(self, dim, act, batch_norm, dropout_rate,fc_layers=2):
         super(EGAT_att, self).__init__()
 
         self.act       = act

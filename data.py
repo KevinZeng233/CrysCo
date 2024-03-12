@@ -86,51 +86,56 @@ def loader_setup(
 
 
 
-
-
-def get_dataset(data_path, target_index, reprocess="False", processing_args=None):
-    if processing_args == None:
-        processed_path = "processed"
-    else:
-        processed_path = processing_args.get("processed_path", "processed")
-
+def get_dataset(data_path, filename="Eh.pt", target_index=0):
+    processed_path = "processed"
     transforms = GetY(index=target_index)
 
-    if os.path.exists(data_path) == False:
-        print("Data not found in:", data_path)
-        sys.exit()
-
-    if reprocess == "True":
-        os.system("rm -rf " + os.path.join(data_path, processed_path))
-        process_data(data_path, processed_path, processing_args)
-
-    if os.path.exists(os.path.join(data_path, processed_path, "shear.pt")) == True:
+    if os.path.exists(os.path.join(data_path, processed_path, filename)):
         dataset = StructureDataset(
             data_path,
             processed_path,
-            transforms,
+            filename=filename,
+            transform=transforms,
         )
-    elif os.path.exists(os.path.join(data_path, processed_path, "data0.pt")) == True:
-        dataset = StructureDataset_large(
-            data_path,
-            processed_path,
-            transforms,
-        )
-    else:
-        process_data(data_path, processed_path, processing_args)
-        if os.path.exists(os.path.join(data_path, processed_path, "shear.pt")) == True:
-            dataset = StructureDataset(
-                data_path,
-                processed_path,
-                transforms,
-            )
-        elif os.path.exists(os.path.join(data_path, processed_path, "data0.pt")) == True:
-            dataset = StructureDataset_large(
-                data_path,
-                processed_path,
-                transforms,
-            )        
-    return dataset
+        return dataset
+
+
+##Dataset class from pytorch/pytorch geometric; inmemory case
+class StructureDataset(InMemoryDataset):
+    def __init__(
+        self, data_path, processed_path="processed", filename="Eh.pt", transform=None, pre_transform=None
+    ):
+        self.data_path = data_path
+        self.processed_path = processed_path
+        self.filename = filename  # Add this line
+        super(StructureDataset, self).__init__(data_path, transform, pre_transform)
+        self.data, self.slices = torch.load(os.path.join(self.processed_dir, self.filename))
+
+    @property
+    def raw_file_names(self):
+        return []
+
+    @property
+    def processed_dir(self):
+        return os.path.join(self.data_path, self.processed_path)
+
+    @property
+    def processed_file_names(self):
+        return [self.filename]  #
+
+
+
+        return data
+##Get specified y index from data.y
+class GetY(object):
+    def __init__(self, index=0):
+        self.index = index
+
+    def __call__(self, data):
+        # Specify target.
+        if self.index != -1:
+            data.y = data.y[0][self.index]
+        return data
 
 def splt_data(
     dataset,
@@ -172,40 +177,4 @@ def splt_data(
     else:
         print("invalid ratios")
 
-##Dataset class from pytorch/pytorch geometric; inmemory case
-class StructureDataset(InMemoryDataset):
-    def __init__(
-        self, data_path, processed_path="processed", transform=None, pre_transform=None
-    ):
-        self.data_path = data_path
-        self.processed_path = processed_path
-        super(StructureDataset, self).__init__(data_path, transform, pre_transform)
-        self.data, self.slices = torch.load(self.processed_paths[0])
-
-    @property
-    def raw_file_names(self):
-        return []
-
-    @property
-    def processed_dir(self):
-        return os.path.join(self.data_path, self.processed_path)
-
-    @property
-    def processed_file_names(self):
-        file_names = ["shear.pt"]
-        return file_names
-
-
-
-        return data
-##Get specified y index from data.y
-class GetY(object):
-    def __init__(self, index=0):
-        self.index = index
-
-    def __call__(self, data):
-        # Specify target.
-        if self.index != -1:
-            data.y = data.y[self.index]
-        return data
 

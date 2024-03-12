@@ -51,7 +51,7 @@ model_parameters = {
        "out_dims":64,
         "d_model":128,
         "N":3,
-        "heads":4,
+        "heads":4
         ,"dim1": 64
         ,"dim2": 64
         ,"numb_embbeding":1
@@ -72,6 +72,7 @@ model_parameters = {
 training_parameters = { 
     "target_index": 0
     ,"loss": "mse_loss"       
+    ,"verbosity": 1
 }
 job_parameters= { 
         "reprocess":"False"
