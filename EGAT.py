@@ -153,56 +153,38 @@ class EGAT_att(torch.nn.Module):
 
 
 class EGAT_LAYER(MessagePassing):
-    def __init__(self, dim, act, dropout_rate, fc_layers=2, **kwargs):
-        super(EGAT_LAYER, self).__init__(aggr='add',flow='target_to_source', **kwargs)
+    def __init__(self, dim, activation, use_batch_norm, track_stats, dropout, fc_layers=2, **kwargs):
+        super().__init__(aggr='add', flow='target_to_source', **kwargs)
+        self.activation_func = getattr(F, activation)
+        self.dropout = dropout
+        self.dim = dim
+        self.heads = 4
+        self.weight = Parameter(torch.Tensor(dim * 2, self.heads * dim))
+        self.attention = Parameter(torch.Tensor(1, self.heads, 2 * dim))
+        self.bias = Parameter(torch.Tensor(dim)) if kwargs.get('add_bias', True) else None
+        self.bn = nn.BatchNorm1d(self.heads) if use_batch_norm.lower() == "true" else None
+        self._reset_parameters()
 
-        self.act          = act
-        self.fc_layers    = fc_layers
-        self.dropout_rate = dropout_rate
-        self.heads             = 8
-        self.add_bias          = True
-        self.neg_slope         = 0.2
-        self.bn1               = nn.BatchNorm1d(self.heads)
-        self.W                 = Parameter(torch.Tensor(dim*2,self.heads*dim))
-        self.att               = Parameter(torch.Tensor(1,self.heads,2*dim))
-        self.dim               = dim
-        self.lin_dim           = 64
-        self.lin_edge_att = LinearAttention(self.lin_dim)
-        if self.add_bias  : self.bias = Parameter(torch.Tensor(dim))
-        else              : self.register_parameter('bias', None)
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        glorot(self.W)
-        glorot(self.att)
-        zeros(self.bias)
+    def _reset_parameters(self):
+        nn.init.xavier_uniform_(self.weight)
+        nn.init.xavier_uniform_(self.attention)
+        if self.bias is not None:
+            nn.init.zeros_(self.bias)
 
     def forward(self, x, edge_index, edge_attr):
-        return self.propagate(edge_index, x=x,edge_attr=edge_attr)
+        return self.propagate(edge_index, x=x, edge_attr=edge_attr)
 
-    def message(self, edge_index_i, x_i, x_j, size_i, edge_attr): 
-        out_i   = torch.cat([x_i,edge_attr],dim=-1)
-        out_j   = torch.cat([x_j,edge_attr],dim=-1)
-        
-        out_i   = getattr(F, self.act)(torch.matmul(out_i,self.W))
-        out_j   = getattr(F, self.act)(torch.matmul(out_j,self.W))
-        out_i   = out_i.view(-1, self.heads, self.dim)
-        out_j   = out_j.view(-1, self.heads, self.dim)
-
-        alpha   = getattr(F, self.act)((torch.cat([out_i, out_j], dim=-1)*self.att).sum(dim=-1))
-        alpha   = getattr(F, self.act)(self.bn1(alpha))
-        alpha   = tg_softmax(alpha,edge_index_i)
-
-        alpha   = F.dropout(alpha, p=self.dropout_rate, training=self.training)
-        out_j     = (out_j * alpha.view(-1, self.heads, 1)).transpose(0,1)
-        #out_j =  self.lin_edge_att(out_j)
-        #print(out_j.shape)
-        return out_j
+    def message(self, edge_index_i, x_i, x_j, size_i, edge_attr):
+        combined_x_i = self.activation_func(torch.matmul(torch.cat([x_i, edge_attr], dim=-1), self.weight)).view(-1, self.heads, self.dim)
+        combined_x_j = self.activation_func(torch.matmul(torch.cat([x_j, edge_attr], dim=-1), self.weight)).view(-1, self.heads, self.dim)
+        alpha = self.activation_func((torch.cat([combined_x_i, combined_x_j], dim=-1) * self.attention).sum(dim=-1))
+        if self.bn:
+            alpha = self.activation_func(self.bn(alpha))
+        alpha = tg_softmax(alpha, edge_index_i)
+        return (combined_x_j * F.dropout(alpha, p=self.dropout, training=self.training).view(-1, self.heads, 1)).transpose(0, 1)
 
     def update(self, aggr_out):
-        out = aggr_out.mean(dim=0)
-        if self.bias is not None:  out = out + self.bias
-        return out
+        return aggr_out.mean(dim=0) + (self.bias if self.bias is not None else 0)
 class EGATs_attention(MessagePassing):
     def __init__(self, dim, activation='relu', use_batch_norm=False, dropout_rate=0.5, 
                  num_heads=4, add_bias=True, num_fc_layers=2, edge_dim=None, **kwargs):
