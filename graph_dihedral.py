@@ -3,6 +3,19 @@ from pymatgen.core.periodic_table import Element
 import numpy as np
 import torch
 from itertools import combinations, product
+import csv
+import os
+from time import time
+import numpy as np
+import torch
+from torch import nn
+from torch.nn.parameter import Parameter
+import torch.functional as F
+from torch.utils.data import Dataset
+from itertools import combinations
+from pymatgen.io.cif import CifParser
+from pymatgen.core.periodic_table import Element
+
 class Graph(object):
     '''
     Graph object for creation of atomic graphs with bond and node attributes from pymatgen structure
@@ -170,7 +183,7 @@ class load_graphs_targets(object):
         # except:
         #    return None
         
-class CrystalGraphDataset(Dataset):
+class CrystalGraphDataset():
     '''
     A Crystal graph dataset container for genrating and loading pytorch dataset to be passed to train test and validation loader
     '''
@@ -326,3 +339,4 @@ def load_dataset(directory, target_property_file, neighbors=12, rcut=3, delta=1)
         dataset.append(a)
     
     return dataset
+

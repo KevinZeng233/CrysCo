@@ -58,106 +58,66 @@ def trainer(
     train_sampler,
     epochs,
     verbosity,
-    filename = "my_model_temp.pth",
+    filename="my_model_temp.pth",
 ):
 
     train_error = val_error = test_error = epoch_time = float("NaN")
     train_start = time.time()
     best_val_error = 1e10
-    model_best = model
-    ##Start training over epochs loop
+    best_state_dict = model.state_dict()  # Initialize with the initial model state
+
+    # Start training over epochs loop
     for epoch in range(1, epochs + 1):
 
         lr = scheduler.optimizer.param_groups[0]["lr"]
         if rank not in ("cpu", "cuda"):
             train_sampler.set_epoch(epoch)
-        ##Train model
+        # Train model
         train_error = train(model, optimizer, train_loader, loss, rank=rank)
         if rank not in ("cpu", "cuda"):
             torch.distributed.reduce(train_error, dst=0)
             train_error = train_error / world_size
 
-        ##Get validation performance
+        # Get validation performance
         if rank not in ("cpu", "cuda"):
             dist.barrier()
-        if val_loader != None and rank in (0, "cpu", "cuda"):
-            if rank not in ("cpu", "cuda"):
-                val_error = evaluate(
-                    val_loader, model.module, loss, rank=rank, out=False
-                )
-            else:
-                val_error = evaluate(val_loader, model, loss, rank=rank, out=False)
+        if val_loader is not None and rank in (0, "cpu", "cuda"):
+            val_error = evaluate(val_loader, model, loss, rank=rank, out=False)
 
-        ##Train loop timings
+        # Train loop timings
         epoch_time = time.time() - train_start
         train_start = time.time()
 
-        ##remember the best val error and save model and checkpoint        
-        if val_loader != None and rank in (0, "cpu", "cuda"):
-            if val_error == float("NaN") or val_error < best_val_error:
-                if rank not in ("cpu", "cuda"):
-                    model_best = copy.deepcopy(model.module)
-                    torch.save(
-                        {
-                            "state_dict": model.state_dict(),
-                            "optimizer_state_dict": optimizer.state_dict(),
-                            "scheduler_state_dict": scheduler.state_dict(),
-                            "full_model": model,
-                        },
-                        filename,
-                    )
-                else:
-                    model_best = copy.deepcopy(model)
-                    torch.save(
-                        {
-                            "state_dict": model.state_dict(),
-                            "optimizer_state_dict": optimizer.state_dict(),
-                            "scheduler_state_dict": scheduler.state_dict(),
-                            "full_model": model,
-                        },
-                        filename,
-                    )
-            best_val_error = min(val_error, best_val_error)
-        elif val_loader == None and rank in (0, "cpu", "cuda"):
-            if rank not in ("cpu", "cuda"):
-                model_best = copy.deepcopy(model.module)
+        # Remember the best validation error and save model and checkpoint        
+        if val_loader is not None and rank in (0, "cpu", "cuda"):
+            if val_error < best_val_error:
+                best_state_dict = model.state_dict()  # Update the best model state
+                best_val_error = val_error
+                # Save only the necessary components
                 torch.save(
                     {
-                        "state_dict": model.state_dict(),
+                        "state_dict": best_state_dict,
                         "optimizer_state_dict": optimizer.state_dict(),
                         "scheduler_state_dict": scheduler.state_dict(),
-                        "full_model": model,
-                    },
-                    filename,
-                )
-            else:
-                model_best = copy.deepcopy(model)
-                torch.save(
-                    {
-                        "state_dict": model.state_dict(),
-                        "optimizer_state_dict": optimizer.state_dict(),
-                        "scheduler_state_dict": scheduler.state_dict(),
-                        "full_model": model,
                     },
                     filename,
                 )
 
-        ##scheduler on train error
+        # Update the learning rate scheduler
         scheduler.step(train_error)
 
-        ##Print performance
-        if epoch % verbosity == 0:
-            if rank in (0, "cpu", "cuda"):
-                print(
-                    "Epoch: {:04d}, Learning Rate: {:.6f}, Training Error: {:.5f}, Val Error: {:.5f}, Time per epoch (s): {:.5f}".format(
-                        epoch, lr, train_error, val_error, epoch_time
-                    )
-                )
+        # Print performance
+        if epoch % verbosity == 0 and rank in (0, "cpu", "cuda"):
+            print(
+                f"Epoch: {epoch:04d}, Learning Rate: {lr:.6f}, Training Error: {train_error:.5f}, Val Error: {val_error:.5f}, Time per epoch (s): {epoch_time:.5f}"
+            )
 
     if rank not in ("cpu", "cuda"):
         dist.barrier()
 
-    return model_best
+    # Load the best model state to return
+    model.load_state_dict(best_state_dict)
+    return model
 
 
 def model_setup(

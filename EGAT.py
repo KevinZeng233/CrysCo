@@ -153,7 +153,7 @@ class EGAT_att(torch.nn.Module):
 
 
 class EGAT_LAYER(MessagePassing):
-    def __init__(self, dim, activation, use_batch_norm, track_stats, dropout, fc_layers=2, **kwargs):
+    def __init__(self, dim, activation, use_batch_norm, dropout, fc_layers=2, **kwargs):
         super().__init__(aggr='add', flow='target_to_source', **kwargs)
         self.activation_func = getattr(F, activation)
         self.dropout = dropout
@@ -162,7 +162,7 @@ class EGAT_LAYER(MessagePassing):
         self.weight = Parameter(torch.Tensor(dim * 2, self.heads * dim))
         self.attention = Parameter(torch.Tensor(1, self.heads, 2 * dim))
         self.bias = Parameter(torch.Tensor(dim)) if kwargs.get('add_bias', True) else None
-        self.bn = nn.BatchNorm1d(self.heads) if use_batch_norm.lower() == "true" else None
+        self.bn = nn.BatchNorm1d(self.heads)
         self._reset_parameters()
 
     def _reset_parameters(self):

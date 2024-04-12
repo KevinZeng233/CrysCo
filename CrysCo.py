@@ -23,7 +23,7 @@ import pandas as pd
 from MLP import MLP
 from transformer import Transformer,ElementEncoder,PositionalEncoder
 from SE import ResidualSE3, NormSE3, LinearSE3
-from EGAT import LinearAttention, GatedGCN,EGAT_att,EGAT_LAYER
+from EGAT import LinearAttention, GatedGCN,EGAT_att,EGAT_LAYER,EGATs_attention
 class ResidualNN(nn.Module):
     def __init__(self, input_dim, output_dim, hidden_layer_dims):
         super(ResidualNN, self).__init__()
@@ -57,10 +57,10 @@ class CrysCo(torch.nn.Module):
         numb_embbeding=1,
         numb_EGAT=5,
         numb_GATGCN=5,
-        pool="global_add_pool",
-        pool_order="early",
-        act="silu",     
         batch_norm =True,
+        pool="global_add_pool",
+        act="silu",     
+
         dropout_rate =0,
         **kwargs
     ):
@@ -71,7 +71,6 @@ class CrysCo(torch.nn.Module):
         self.batch_norm =batch_norm
         self.pool         = pool
         self.act          = act
-        self.pool_order   = pool_order
         self.out_dims = out_dims
         self.d_model = d_model
         self.out_hidden = [1024, 512, 256, 128]
@@ -83,45 +82,52 @@ class CrysCo(torch.nn.Module):
         self.resnet = ResidualNN(self.d_model, self.out_dims, self.out_hidden)
         output_dim = 1 if data[0].y.ndim == 0 else len(data[0].y)
         self.pre_lin_list_E = torch.nn.ModuleList()  
+        self.pre_lin_list_N_angle = torch.nn.ModuleList()  
         self.pre_lin_list_N = torch.nn.ModuleList()  
         data.num_edge_features
         for i in range(numb_embbeding):
-            embed_atm = nn.Sequential(MLP([data.num_features,dim1, dim1],  act=nn.SiLU()), nn.LayerNorm(dim1))
+            embed_atm = nn.Sequential(MLP([114,dim1, dim1],  act=nn.SiLU()), nn.LayerNorm(dim1))
             self.pre_lin_list_N.append(embed_atm)
-            embed_bnd = nn.Sequential(MLP([data.num_edge_features,dim1,dim1], act=nn.SiLU()), nn.LayerNorm(dim1))
+            embed_bnd = nn.Sequential(MLP([50,dim1,dim1], act=nn.SiLU()), nn.LayerNorm(dim1))
             self.pre_lin_list_E.append(embed_bnd)    
-        self.conv1_list = torch.nn.ModuleList()
-        for i in range(numb_GATGCN):
-            conv1 = GatedGCN(dim1,dim1)
-            self.conv1_list.append(conv1)
+            embed_ang = nn.Sequential(MLP([210,dim1,dim1], act=nn.SiLU()), nn.LayerNorm(dim1))
+            self.pre_lin_list_N_angle.append(embed_ang)
+    
         self.conv_list = torch.nn.ModuleList()
+        for i in range(numb_GATGCN):
+            conv = EGATs_attention(dim1)
+            self.conv_list.append(conv)
+        self.conv1_list = torch.nn.ModuleList()
         self.bn_list = torch.nn.ModuleList()
         for i in range(numb_EGAT):
-            conv = EGAT_LAYER(dim1, act, batch_norm,  dropout_rate)
-            self.conv_list.append(conv)
+            conv1 = EGAT_LAYER(dim1, act, batch_norm,  dropout_rate)
+            self.conv1_list.append(conv1)
             bn = BatchNorm1d(dim1)
             self.bn_list.append(bn)
         self.lin_out = torch.nn.Linear(dim1*3, output_dim)   
 
     def forward(self, data):
    
-        for i in range(0, len(self.pre_lin_list_N)):
+        for i in range(1):
+            out_xa = self.pre_lin_list_N_angle[i](data.angle_fea)
+            out_xa = F.softplus(out_xa)
             out_x = self.pre_lin_list_N[i](data.x)
             out_x = F.softplus(out_x)
             out_e = self.pre_lin_list_E[i](data.edge_attr)
             out_e = F.softplus(out_e)
         prev_out_x = out_x
-        for i in range(0, len(self.conv1_list)):
-            out_x ,edge_attr_x= self.conv1_list[i](out_x, data.clone().edge_index, out_e)
-            out_x,edge_attr_x = self.conv1_list[i](out_x, data.clone().edge_index, edge_attr_x)
+        out_xs,edge_attr_x = self.conv_list[0](out_xa,data.edge_index, out_e)
         for i in range(0, len(self.conv_list)):
-            out_x = self.conv_list[i](out_x, data.clone().edge_index, edge_attr_x)
-            out_x = self.bn_list[i](out_x)           
+            out_xs,edge_attr_x = self.conv_list[i](out_xs,data.edge_index, edge_attr_x)
+        out_e=out_e+edge_attr_x
+        for i in range(0, len(self.conv_list)):
+            out_x = self.conv1_list[i](out_x, data.edge_index, out_e)
+            out_x = self.bn_list[i](out_x)         
             out_x = torch.add(out_x, prev_out_x)
-            out_x = F.dropout(out_x, p=self.dropout_rate, training=self.training)
-            prev_out_x = out_x
+        out_x = F.dropout(out_x, p=0.1, training=self.training)
 
-        out_a = self.edge_att(out_x,data.batch,data.glob_feat)#inspired from deeperGATGNN model
+
+        out_a = self.edge_att(out_x,data.batch,data.glob_feat)#obtained from deeperGATGNN model
         out_x = (out_x)*out_a    
         output = self.encoder(data.src.to(dtype=torch.long,non_blocking=True), data.frac.to(dtype=torch.float,non_blocking=True))
         mask = (data.src == 0).unsqueeze(-1).repeat(1, 1, self.out_dims)
