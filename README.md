@@ -48,8 +48,10 @@ for prediction, you can use prediction.ipynb file. you need to run this notebook
 If you use this repository, in addition to our manuscript, please cite the following papers:
 
 1- Omee, Sadman Sadeed, et al. "Scalable deeper graph neural networks for high-performance materials property prediction." Patterns 3.5 (2022).
+
+
 2- Wang, Anthony Yu-Tung, et al. "Compositionally restricted attention-based network for materials property predictions." Npj Computational Materials 7.1 (2021): 77.
-3- 
+
 
 
 
