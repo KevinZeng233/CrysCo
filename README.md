@@ -1,10 +1,10 @@
 # This repository includes CrysCo model to predict inorganic material properties via a hybrid graph-transformer based model.
 
-We will updates this repository further after acceptance of our manuscript. 
+"Accelerating materials property prediction via a hybrid Transformer Graph framework that leverages four body interactions"
 
 # Dataset
 
-We trained our model mainly on MP21 datasets for 9 properties.
+We trained our model mainly on MP21 datasets for 8 properties.
 
 # Data preprocessing
 
@@ -51,6 +51,9 @@ If you use this repository, in addition to our manuscript, please cite the follo
 
 
 2- Wang, Anthony Yu-Tung, et al. "Compositionally restricted attention-based network for materials property predictions." Npj Computational Materials 7.1 (2021): 77.
+
+If you have any question, please send me an email:
+mohammad73madani73@gmail.com
 
 
 
