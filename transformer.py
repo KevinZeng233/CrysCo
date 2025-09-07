@@ -78,46 +78,54 @@ class PositionalEncoder(nn.Module):
 class Transformer(nn.Module):
     def __init__(self, d_model, N, heads, frac=False, attn=True):
         super().__init__()
-        self.d_model = d_model
-        self.N = N
-        self.heads = heads
-        self.fractional = frac
-        self.attention = attn
-        self.embed = ElementEncoder(d_model=self.d_model)
-        self.pe = PositionalEncoder(self.d_model, resolution=5000)
-        self.ple = PositionalEncoder(self.d_model, resolution=5000)
+        self.d_model = d_model # 模型隐藏维度大小
+        self.N = N             # Transformer 层数
+        self.heads = heads     # 多头注意力的头数
+        self.fractional = frac # 是否在最后乘以原子分数 frac
+        self.attention = attn  # 是否使用 attention（否则就只有 embedding）
+        self.embed = ElementEncoder(d_model=self.d_model)           # 元素嵌入，把元素类别转成向量
+        self.pe = PositionalEncoder(self.d_model, resolution=5000)  # 普通位置编码
+        self.ple = PositionalEncoder(self.d_model, resolution=5000) # log 位置编码 
 
+        # 三个可学习缩放参数
         self.emb_scaler = nn.Parameter(torch.tensor([1.]))
         self.pos_scaler = nn.Parameter(torch.tensor([1.]))
         self.pos_scaler_log = nn.Parameter(torch.tensor([1.]))
 
+        # Transformer 编码器
         if self.attention:
             encoder_layer = nn.TransformerEncoderLayer(self.d_model, nhead=self.heads, dim_feedforward=2048, dropout=0.1)
             self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=self.N)
 
     def forward(self, src, frac):
+        # 1. 元素嵌入
         x = self.embed(src) * 2 ** self.emb_scaler
-        mask = frac.unsqueeze(dim=-1)
-        mask = torch.matmul(mask, mask.transpose(-2, -1))
-        mask[mask != 0] = 1
-        src_mask = mask[:, 0] != 1
+        # 2. 构造 Mask -> 标记哪些位置是 padding (frac=0 的原子)，避免 Transformer 误处理无效输入。
+        mask = frac.unsqueeze(dim=-1)                     # (batch, n_atoms, 1)
+        mask = torch.matmul(mask, mask.transpose(-2, -1)) # 如果两个原子都有非零分数，则对应位置为非零。
+        mask[mask != 0] = 1                               # 把非零位置设为 1，得到二值 mask。
+        src_mask = mask[:, 0] != 1                        # 取 batch 中第一行，得到 padding mask，供 TransformerEncoder 使用
 
+        # 3. 位置编码 
         pe = torch.zeros_like(x)
         ple = torch.zeros_like(x)
+        # pe_scaler 和 ple_scaler 是可学习缩放因子（指数形式）
         pe_scaler = 2 ** (1 - self.pos_scaler) ** 2
         ple_scaler = 2 ** (1 - self.pos_scaler_log) ** 2
         pe[:, :, :self.d_model // 2] = self.pe(frac) * pe_scaler
         ple[:, :, self.d_model // 2:] = self.ple(frac) * ple_scaler
 
+        # 4. Transformer 编码 经典 Transformer 编码流程，只不过在输入里加了两种位置编码。
         if self.attention:
-            x_src = x + pe + ple
-            x_src = x_src.transpose(0, 1)
+            x_src = x + pe + ple            # 加上 embedding + 两种位置编码
+            x_src = x_src.transpose(0, 1)   # 变成 (n_atoms, batch, d_model)，符合 PyTorch Transformer 输入
             x = self.transformer_encoder(x_src, src_key_padding_mask=src_mask)
-            x = x.transpose(0, 1)
-
+            x = x.transpose(0, 1)           # 变回 (batch, n_atoms, d_model)
+        # 5. 分数加权（fractional scaling）
         if self.fractional:
             x = x * frac.unsqueeze(2).repeat(1, 1, self.d_model)
-
+        
+        # 6. 掩码填充
         hmask = mask[:, :, 0:1].repeat(1, 1, self.d_model)
         if mask is not None:
             x = x.masked_fill(hmask == 0, 0)
